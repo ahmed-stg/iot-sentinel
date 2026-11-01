@@ -1,0 +1,11 @@
+__pycache__/
+*.py[cod]
+.venv/
+out/
+build/
+dist/
+*.egg-info/
+examples/openwrt-rootfs.tar.gz
+examples/*.pcap.orig
+data/snapshots/*full*
+.nft/

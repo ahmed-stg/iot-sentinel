@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "iotsentinel"
+version = "0.1.0"
+description = "Firmware image to ranked risk to enforced network policy, in one stdlib-only tool"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [{name = "Ahmed Kaouadji"}]
+
+[project.scripts]
+iotsentinel = "iotsentinel.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
