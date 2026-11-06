@@ -1,0 +1,22 @@
+{
+  "_comment": "Maps OpenWrt package names to NVD CPE vendor:product pairs. Only mapped components are assessed; anything else is reported as not assessed. Verified against the NVD API on 2026-11-15 (see data/snapshots/ manifest).",
+  "busybox": "busybox:busybox",
+  "libopenssl": "openssl:openssl",
+  "openssl": "openssl:openssl",
+  "openssl-util": "openssl:openssl",
+  "dnsmasq": "thekelleys:dnsmasq",
+  "dnsmasq-full": "thekelleys:dnsmasq",
+  "dropbear": "mjk:dropbear",
+  "hostapd": "w1.fi:hostapd",
+  "wpad": "w1.fi:wpa_supplicant",
+  "wpa-supplicant": "w1.fi:wpa_supplicant",
+  "libcurl": "curl:curl",
+  "curl": "curl:curl",
+  "lighttpd": "lighttpd:lighttpd",
+  "libmbedtls": "arm:mbedtls",
+  "libwolfssl": "wolfssl:wolfssl",
+  "openssh-client": "openbsd:openssh",
+  "openssh-server": "openbsd:openssh",
+  "openssh-keygen": "openbsd:openssh",
+  "kernel": "linux:linux_kernel"
+}
