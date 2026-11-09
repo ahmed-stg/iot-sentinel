@@ -70,11 +70,11 @@ class Component:
 
 
 def upstream_version(version: str) -> str:
-    """Strip the OpenWrt revision suffix (`1.36.1-3` -> `1.36.1`).
-
-    CPE/NVD version matching is against upstream versions, so the tool
-    records both and maps on the upstream one.
-    """
+    """Strip the OpenWrt decoration suffixes so NVD/CPE matching runs on
+    the upstream version: `1.36.1-3` -> `1.36.1`, and
+    `6.12.112~b4125196` -> `6.12.112` (git hash decoration)."""
+    version = re.sub(r"-r\d+$", "", version)
+    version = re.sub(r"~[0-9a-f]{7,40}$", "", version)
     parts = version.split("-")
     if len(parts) > 1 and re.fullmatch(r"r\d+[a-z]?", parts[-1]):
         return "-".join(parts[:-1])

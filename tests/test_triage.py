@@ -82,7 +82,8 @@ class TestVersionMatching(unittest.TestCase):
                 {"cpe": "cpe:2.3:a:busybox:busybox:1.36.0:*:*:*:*:*:*:*"}]),
             rec("CVE-2024-0002", 5.0, []),
         ]}}
-        hits = component_cves("busybox", "1.36.1", "busybox", "busybox", nvd)
+        hits = component_cves("busybox", "1.36.1", "a", "busybox",
+                              "busybox", nvd)
         # exact-version criterion 1.36.0 != 1.36.1, record without criteria kept
         self.assertEqual([r["id"] for r in hits], ["CVE-2024-0002"])
 
@@ -122,7 +123,7 @@ class TestReport(unittest.TestCase):
              "properties": [{"name": "iotsentinel:version_upstream",
                              "value": "1.36.1"}]},
             {"name": "mystery", "version": "1.0"}]},
-            {"busybox": "busybox:busybox"}, nvd, kev,
+            {"busybox": "a:busybox:busybox"}, nvd, kev,
             {"CVE-2024-0003": 0.5})
         self.assertEqual(len(built["rows"]), 1)
         self.assertEqual(built["not_assessed"], ["mystery@1.0"])
@@ -134,7 +135,7 @@ class TestReport(unittest.TestCase):
             {"name": "busybox", "version": "1.36.1",
              "properties": [{"name": "iotsentinel:version_upstream",
                              "value": "1.36.1"}]}]},
-            {"busybox": "busybox:busybox"}, nvd, {}, {})
+            {"busybox": "a:busybox:busybox"}, nvd, {}, {})
         self.assertTrue(built["rows"][0]["no_epss"])
         w = WEIGHTS["W1"]
         self.assertAlmostEqual(score_row(9.8, None, False, w), 0.392)
@@ -146,7 +147,7 @@ class TestReport(unittest.TestCase):
             {"name": "busybox", "version": "1.36.1",
              "properties": [{"name": "iotsentinel:version_upstream",
                              "value": "1.36.1"}]}]},
-            {"busybox": "busybox:busybox"}, nvd, kev,
+            {"busybox": "a:busybox:busybox"}, nvd, kev,
             {"CVE-2024-0003": 0.5})
         rep = build_report(str(self.sbom), str(self.snap), built["rows"],
                            built["not_assessed"], "W1",

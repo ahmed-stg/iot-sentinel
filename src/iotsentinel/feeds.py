@@ -85,20 +85,47 @@ def fetch_epss(date: str) -> tuple[str, list[tuple[str, float, float]], bytes]:
     return model_version, rows, blob
 
 
-def fetch_nvd_cpe(cpe_name: str, results_per_page: int = 2000) -> dict:
-    """Query NVD CVE API 2.0 for all CVEs matching a CPE product (wildcard
-    version); version filtering happens locally in triage."""
+def fetch_nvd_cpe(query: str, results_per_page: int = 2000,
+                  sleep_s: float = 6.0) -> tuple[list[dict], int]:
+    """Query NVD CVE API 2.0 with a virtualMatchString (all CVEs whose
+    configuration mentions the CPE product, any version) and paginate.
+    The anonymous rate limit is respected by sleeping between pages.
+    Returns (trimmed CVE records, total_results)."""
     import urllib.parse
-    url = (f"{NVD_URL}?cpeName={urllib.parse.quote(cpe_name)}"
-           f"&resultsPerPage={results_per_page}")
-    blob = http_get(url, timeout=90)
-    return json.loads(blob)
+    vms = urllib.parse.quote(query, safe=":")
+    trimmed: list[dict] = []
+    start = 0
+    total = 0
+    while True:
+        url = (f"{NVD_URL}?virtualMatchString={vms}"
+               f"&resultsPerPage={results_per_page}&startIndex={start}")
+        data = json.loads(http_get(url, timeout=120))
+        total = data.get("totalResults", 0)
+        for item in data.get("vulnerabilities", []):
+            if "cve" in item:
+                trimmed.append(trim_nvd_item(item["cve"]))
+        start += results_per_page
+        if start >= total or not data.get("vulnerabilities", []):
+            break
+        time.sleep(sleep_s)
+    return trimmed, total
 
 
 def load_cpe_map(path: str | os.PathLike) -> dict[str, str]:
-    """package name -> 'vendor:product'."""
+    """package name -> CPE spec 'part:vendor:product' (part defaults to
+    'a' when omitted)."""
     with open(path, encoding="utf-8") as f:
-        return json.load(f)
+        raw = json.load(f)
+    return {name: spec if spec.count(":") == 2 else f"a:{spec}"
+            for name, spec in raw.items() if not name.startswith("_")}
+
+
+def parse_cpe_spec(spec: str) -> tuple[str, str, str]:
+    """'o:linux:linux_kernel' -> ('o', 'linux', 'linux_kernel')."""
+    part, vendor, product = spec.split(":", 2)
+    if part not in ("a", "o", "h"):
+        raise ValueError(f"bad CPE spec: {spec!r}")
+    return part, vendor, product
 
 
 def cmd_fetch(args) -> int:
@@ -155,41 +182,74 @@ def cmd_fetch(args) -> int:
         "rows": len(epss_rows),
     }
 
-    # NVD, per CPE product (wildcard version), respecting the rate limit
+    # NVD, per CPE product (virtualMatchString, paginated), respecting the
+    # anonymous rate limit
     cpe_map = load_cpe_map("data/cpe_map.json")
-    products = sorted({spec.split(":", 1)[1] for spec in cpe_map.values()
-                       if ":" in spec})
+    specs = sorted({spec for spec in cpe_map.values()})
     nvd_dir = snap / "nvd"
     nvd_dir.mkdir(exist_ok=True)
     manifest["feeds"]["nvd"] = {"url": NVD_URL, "queries": {}}
-    n_rows = len(products)
-    for i, product in enumerate(products, 1):
-        vendor = next(v for v, p in
-                      (spec.split(":", 1) for spec in cpe_map.values())
-                      if p == product)
-        cpe = f"cpe:2.3:a:{vendor}:{product}:*:*:*:*:*:*:*:*"
+    n_rows = len(specs)
+    for i, spec in enumerate(specs, 1):
+        part, vendor, product = parse_cpe_spec(spec)
+        query = f"cpe:2.3:{part}:{vendor}:{product}"
         out = nvd_dir / f"{vendor}__{product}.json"
-        print(f"  NVD {i}/{n_rows}: {vendor}:{product} ...")
+        print(f"  NVD {i}/{n_rows}: {part}:{vendor}:{product} ...")
         try:
-            data = fetch_nvd_cpe(cpe)
+            records, total = fetch_nvd_cpe(query, sleep_s=args.nvd_sleep)
         except (urllib.error.HTTPError, urllib.error.URLError, TimeoutError) \
                 as exc:
             print(f"    warning: {product}: {exc}", file=sys.stderr)
-            data = {"error": str(exc), "vulnerabilities": []}
-        (out).write_text(json.dumps(data) + "\n", encoding="utf-8")
-        manifest["feeds"]["nvd"]["queries"][f"{vendor}:{product}"] = {
-            "cpe": cpe,
-            "total_results": data.get("totalResults", 0),
+            records, total = [], 0
+        out.write_text(json.dumps({
+            "query": query, "total_results": total,
+            "records": records,
+        }) + "\n", encoding="utf-8")
+        manifest["feeds"]["nvd"]["queries"][f"{part}:{vendor}:{product}"] = {
+            "query": query,
+            "total_results": total,
+            "records_stored": len(records),
             "fetched_utc": datetime.now(timezone.utc)
             .isoformat(timespec="seconds"),
         }
         if i < n_rows:
             time.sleep(args.nvd_sleep)
 
+    # Reduce KEV and EPSS to the CVEs the NVD queries returned, so the
+    # committed snapshot stays small and the demo runs offline. Full
+    # files stay next to them (gitignored) as provenance.
+    collected = set()
+    for p in nvd_dir.glob("*.json"):
+        try:
+            collected |= {r["id"] for r in
+                          json.loads(p.read_text(encoding="utf-8"))
+                          .get("records", [])}
+        except (json.JSONDecodeError, KeyError, UnicodeDecodeError):
+            continue
+    kev_rows = [v for v in kev.get("vulnerabilities", [])
+                if v.get("cveID") in collected]
+    (snap / "kev.json").write_text(json.dumps({
+        "catalogVersion": kev.get("catalogVersion", ""),
+        "dateReleased": kev.get("dateReleased", ""),
+        "count": len(kev_rows),
+        "vulnerabilities": kev_rows,
+    }) + "\n", encoding="utf-8")
+    epss_kept = sorted(r for r in epss_rows if r[0] in collected)
+    with open(snap / "epss.csv", "w", encoding="utf-8", newline="") as f:
+        w = csv.writer(f)
+        w.writerow(["cve", "epss", "percentile"])
+        w.writerows(epss_kept)
+    manifest["reduced"] = {
+        "cves_in_nvd": len(collected),
+        "kev_rows": len(kev_rows),
+        "epss_rows": len(epss_kept),
+    }
     (snap / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n",
                                         encoding="utf-8")
-    print(f"fetch: manifest written ({len(epss_rows)} EPSS rows, "
-          f"KEV catalog {manifest['feeds']['kev']['catalog_version']})")
+    print(f"fetch: manifest written ({len(epss_rows)} EPSS rows total, "
+          f"{len(epss_kept)} kept for the snapshot; "
+          f"KEV catalog {manifest['feeds']['kev']['catalog_version']}; "
+          f"{len(collected)} CVEs collected from NVD)")
     return 0
 
 

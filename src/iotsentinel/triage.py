@@ -35,7 +35,8 @@ from pathlib import Path
 from string import Template
 
 from . import __version__
-from .feeds import load_epss, load_kev, load_manifest, load_nvd
+from .feeds import load_epss, load_kev, load_manifest, load_nvd, \
+    parse_cpe_spec
 
 WEIGHTS = {
     "W1": {"w_cvss": 0.4, "w_epss": 0.4, "w_kev": 0.2},
@@ -103,13 +104,13 @@ def cpe_product_version(cpe: str) -> str | None:
     return None if fields[5] == "*" else fields[5]
 
 
-def cpe_matches(criteria: dict, vendor: str, product: str,
+def cpe_matches(criteria: dict, part: str, vendor: str, product: str,
                 version: str) -> bool:
     cpe = criteria.get("cpe", "")
     fields = cpe.split(":")
     if len(fields) < 6:
         return False
-    if fields[2] != "a" or fields[3] != vendor or fields[4] != product:
+    if fields[2] != part or fields[3] != vendor or fields[4] != product:
         return False
     cver = cpe_product_version(cpe)
     if cver is not None and _cmp(version, cver) != 0:
@@ -119,14 +120,14 @@ def cpe_matches(criteria: dict, vendor: str, product: str,
     return version_in_range(version, criteria)
 
 
-def component_cves(component: str, upstream: str, vendor: str, product: str,
-                   nvd: dict[str, dict]) -> list[dict]:
+def component_cves(component: str, upstream: str, part: str, vendor: str,
+                   product: str, nvd: dict[str, dict]) -> list[dict]:
     """CVE records for a component version, from the pinned snapshot."""
     records = nvd.get(f"{vendor}:{product}", {}).get("records", [])
     hits = []
     for rec in records:
         if rec.get("criteria"):
-            matched = any(cpe_matches(c, vendor, product, upstream)
+            matched = any(cpe_matches(c, part, vendor, product, upstream)
                           for c in rec["criteria"])
         else:
             matched = True  # record without criteria: keep, flagged
@@ -164,11 +165,12 @@ def find_rows(sbom: dict, cpe_map: dict[str, str], nvd: dict[str, dict],
         props = {p["name"]: p["value"] for p in comp.get("properties", [])}
         upstream = props.get("iotsentinel:version_upstream", comp["version"])
         mapping = cpe_map.get(name)
-        if mapping is None or ":" not in mapping:
+        if mapping is None:
             not_assessed.append(f"{name}@{upstream}")
             continue
-        vendor, product = mapping.split(":", 1)
-        for rec in component_cves(name, upstream, vendor, product, nvd):
+        part, vendor, product = parse_cpe_spec(mapping)
+        for rec in component_cves(name, upstream, part, vendor, product,
+                                  nvd):
             cve_id = rec["id"]
             cvss = rec.get("cvss")
             epss_val = epss.get(cve_id)
