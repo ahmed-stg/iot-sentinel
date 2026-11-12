@@ -1,0 +1,9 @@
+services:
+  demo:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    working_dir: /work
+    volumes:
+      - ./out:/work/out
+    command: sh /work/docker/demo.sh

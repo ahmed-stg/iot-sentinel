@@ -36,6 +36,11 @@ def build_parser() -> argparse.ArgumentParser:
                          help="snapshot date (default: today, UTC)")
     p_fetch.add_argument("--nvd-sleep", type=float, default=7.0,
                          help="seconds between NVD API calls (rate limit)")
+    p_fetch.add_argument("--sbom", default=None,
+                         help="optional CycloneDX SBOM: when given, NVD "
+                              "records are reduced to the CVEs matching "
+                              "its components (keeps the snapshot small "
+                              "enough to commit)")
 
     p_scan = sub.add_parser(
         "scan",

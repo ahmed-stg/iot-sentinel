@@ -128,6 +128,20 @@ def parse_cpe_spec(spec: str) -> tuple[str, str, str]:
     return part, vendor, product
 
 
+def _cpe_matches_version(crit: dict, version: str) -> bool:
+    """True if one stored criteria entry covers `version` (used by the
+    --sbom reduction; mirrors triage's local matching)."""
+    from .triage import version_in_range
+    cpe = crit.get("cpe", "")
+    fields = cpe.split(":")
+    if len(fields) < 6:
+        return False
+    cver = fields[5]
+    if cver != "*" and not (version == cver or version.startswith(cver)):
+        return False
+    return version_in_range(version, crit)
+
+
 def cmd_fetch(args) -> int:
     date = args.date or datetime.now(timezone.utc).strftime("%Y-%m-%d")
     snap = Path(args.snapshots_dir) / date
@@ -164,7 +178,9 @@ def cmd_fetch(args) -> int:
             epss_model, epss_rows, epss_blob = fetch_epss(epss_date)
             break
         except urllib.error.HTTPError as exc:
-            if exc.code == 404:
+            if exc.code in (403, 404):
+                # the file for `date` may not be published yet (EPSS
+                # publishes the previous day) or is private; step back
                 epss_date = (datetime.strptime(epss_date, "%Y-%m-%d")
                              - timedelta(days=1)).strftime("%Y-%m-%d")
                 continue
@@ -217,15 +233,59 @@ def cmd_fetch(args) -> int:
 
     # Reduce KEV and EPSS to the CVEs the NVD queries returned, so the
     # committed snapshot stays small and the demo runs offline. Full
-    # files stay next to them (gitignored) as provenance.
+    # files stay next to them (gitignored) as provenance. With --sbom,
+    # NVD records are also reduced to the CVEs matching its components.
+    sbom_filter = None
+    if getattr(args, "sbom", None):
+        import json as _json
+        from pathlib import Path as _Path
+        from .triage import component_cves
+        sbom_data = _json.loads(_Path(args.sbom).read_text(
+            encoding="utf-8"))
+        wanted: dict[str, set[str]] = {}   # 'vendor:product' -> versions
+        for comp in sbom_data.get("components", []):
+            spec = cpe_map.get(comp["name"])
+            if spec is None:
+                continue
+            _, vendor, product = parse_cpe_spec(spec)
+            props = {p["name"]: p["value"]
+                     for p in comp.get("properties", [])}
+            upstream = props.get("iotsentinel:version_upstream",
+                                 comp["version"])
+            wanted.setdefault(f"{vendor}:{product}", set()).add(upstream)
+        sbom_filter = wanted
+        manifest["sbom_reduction"] = {
+            "sbom": _Path(args.sbom).name,
+            "components": len(sbom_data.get("components", [])),
+        }
+        print(f"  reducing NVD records to the versions in "
+              f"{_Path(args.sbom).name}")
     collected = set()
     for p in nvd_dir.glob("*.json"):
         try:
-            collected |= {r["id"] for r in
-                          json.loads(p.read_text(encoding="utf-8"))
-                          .get("records", [])}
-        except (json.JSONDecodeError, KeyError, UnicodeDecodeError):
+            data = json.loads(p.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, UnicodeDecodeError):
             continue
+        records = data.get("records", [])
+        if sbom_filter is not None:
+            key = p.stem.replace("__", ":")
+            versions = sorted(sbom_filter.get(key, set()))
+            if not versions:
+                data["records"] = []
+            else:
+                kept = []
+                for rec in records:
+                    crits = rec.get("criteria") or []
+                    if not crits:
+                        matched = True     # record without criteria: keep
+                    else:
+                        matched = any(_cpe_matches_version(c, v)
+                                      for c in crits for v in versions)
+                    if matched:
+                        kept.append(rec)
+                data["records"] = kept
+            p.write_text(json.dumps(data) + "\n", encoding="utf-8")
+        collected |= {r["id"] for r in data.get("records", [])}
     kev_rows = [v for v in kev.get("vulnerabilities", [])
                 if v.get("cveID") in collected]
     (snap / "kev.json").write_text(json.dumps({
@@ -273,9 +333,11 @@ def load_epss(snap: str | os.PathLike) -> dict[str, float]:
     p = path / "epss.csv"
     if p.is_file():
         with open(p, encoding="utf-8") as f:
-            return {row["cve"]: float(row["epss"])
-                    for row in csv.DictReader(f)
-                    if row.get("cve", "").startswith("CVE-")}
+            lines = [l for l in f if not l.startswith("#")]
+        import io as _io
+        return {row["cve"]: float(row["epss"])
+                for row in csv.DictReader(_io.StringIO("".join(lines)))
+                if row.get("cve", "").startswith("CVE-")}
     full = path / "epss.full.csv.gz"
     if full.is_file():
         text = gzip.decompress(full.read_bytes()).decode("utf-8", "replace")
