@@ -28,7 +28,6 @@ import sys
 from pathlib import Path
 
 from . import __version__
-from .mudgen import LOCAL_PORTS_KEEP
 
 ALLOW_RUNG = "allow"
 ALLOW_LOG_RUNG = "allow-and-log"
@@ -87,10 +86,6 @@ def acl_rules(mud: dict) -> dict:
                         out_rules.append(rule)
                     else:
                         in_rules.append(rule)
-            # inbound service rules carry no L3 object
-            if "ipv4" not in matches and "ipv6" not in matches:
-                dirn = spec.get("ietf-mud:direction-initiated", "") \
-                    if "spec" in locals() else ""
     # inbound services (fromdev-*) live in ACLs not named by
     # from-device-policy; pick them up separately
     for acl in acls:

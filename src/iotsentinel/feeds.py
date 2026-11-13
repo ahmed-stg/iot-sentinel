@@ -62,14 +62,24 @@ def fetch_kev() -> tuple[dict, bytes]:
 def fetch_epss(date: str) -> tuple[str, list[tuple[str, float, float]], bytes]:
     """Return (model_version, rows, raw_bytes). Rows: (cve, epss, percentile)."""
     blob = http_get(EPSS_URL.format(date=date))
+    model_version, rows = parse_epss_gzip(blob)
+    return model_version, rows, blob
+
+
+def parse_epss_gzip(blob: bytes) -> tuple[str, list[tuple[str, float, float]]]:
     text = gzip.decompress(blob).decode("utf-8", "replace")
     model_version = ""
     rows: list[tuple[str, float, float]] = []
     header: list[str] | None = None
     for line in text.splitlines():
         if line.startswith("#"):
-            if "model:" in line:
-                model_version = line.split("model:", 1)[1].strip()
+            # header comment, e.g.
+            # "#model_version:v2026.06.15,score_date:2026-11-15T12:03:04Z"
+            for field in line.lstrip("#").split(","):
+                if ":" in field:
+                    key, _, value = field.partition(":")
+                    if key.strip() == "model_version":
+                        model_version = value.strip()
             continue
         if not line.strip():
             continue
@@ -82,15 +92,17 @@ def fetch_epss(date: str) -> tuple[str, list[tuple[str, float, float]], bytes]:
                          float(values.get("percentile", 0.0) or 0.0)))
         except (KeyError, ValueError):
             continue
-    return model_version, rows, blob
+    return model_version, rows
 
 
-def fetch_nvd_cpe(query: str, results_per_page: int = 2000,
+def fetch_nvd_cpe(query: str, results_per_page: int = 1000,
                   sleep_s: float = 6.0) -> tuple[list[dict], int]:
     """Query NVD CVE API 2.0 with a virtualMatchString (all CVEs whose
     configuration mentions the CPE product, any version) and paginate.
-    The anonymous rate limit is respected by sleeping between pages.
+    The anonymous rate limit is respected by sleeping between pages;
+    transient 5xx / truncated reads are retried a few times per page.
     Returns (trimmed CVE records, total_results)."""
+    import http.client
     import urllib.parse
     vms = urllib.parse.quote(query, safe=":")
     trimmed: list[dict] = []
@@ -99,7 +111,27 @@ def fetch_nvd_cpe(query: str, results_per_page: int = 2000,
     while True:
         url = (f"{NVD_URL}?virtualMatchString={vms}"
                f"&resultsPerPage={results_per_page}&startIndex={start}")
-        data = json.loads(http_get(url, timeout=120))
+        data = None
+        last_error: Exception | None = None
+        for attempt in range(3):
+            try:
+                data = json.loads(http_get(url, timeout=120))
+                break
+            except (http.client.IncompleteRead, OSError,
+                    urllib.error.URLError,
+                    urllib.error.HTTPError) as exc:
+                last_error = exc
+                time.sleep(sleep_s * (attempt + 1))
+        if data is None:
+            if isinstance(last_error, urllib.error.HTTPError) and \
+                    last_error.code in (403, 404) and start == 0:
+                raise last_error       # the CPE itself is not in NVD
+            if trimmed or start > 0:
+                print(f"    warning: page {start} failed "
+                      f"({last_error}); keeping partial result",
+                      file=sys.stderr)
+                break
+            raise last_error
         total = data.get("totalResults", 0)
         for item in data.get("vulnerabilities", []):
             if "cve" in item:
@@ -146,56 +178,85 @@ def cmd_fetch(args) -> int:
     date = args.date or datetime.now(timezone.utc).strftime("%Y-%m-%d")
     snap = Path(args.snapshots_dir) / date
     snap.mkdir(parents=True, exist_ok=True)
-    manifest: dict = {
-        "tool_version": __version__,
-        "snapshot_date": date,
-        "feeds": {},
-    }
+    resume = bool(getattr(args, "resume", False)) and \
+        (snap / "manifest.json").is_file()
+    if resume:
+        manifest = json.loads((snap / "manifest.json").read_text(
+            encoding="utf-8"))
+        print(f"fetch: resuming snapshot {date} from {snap}")
+    else:
+        manifest: dict = {
+            "tool_version": __version__,
+            "snapshot_date": date,
+            "feeds": {},
+        }
 
     print(f"fetch: snapshot {date} -> {snap}")
 
     # CISA KEV
-    print("  downloading CISA KEV ...")
-    kev, kev_blob = fetch_kev()
-    (snap / "kev.full.json").write_bytes(kev_blob)
+    kev_full = snap / "kev.full.json"
+    if resume and kev_full.is_file():
+        print("  reusing cached CISA KEV ...")
+        kev_blob = kev_full.read_bytes()
+        kev = json.loads(kev_blob)
+    else:
+        print("  downloading CISA KEV ...")
+        kev, kev_blob = fetch_kev()
+        kev_full.write_bytes(kev_blob)
     manifest["feeds"]["kev"] = {
         "url": KEV_URL,
-        "fetched_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "fetched_utc": manifest["feeds"].get("kev", {}).get(
+            "fetched_utc",
+            datetime.now(timezone.utc).isoformat(timespec="seconds")),
         "sha256": sha256_bytes(kev_blob),
         "catalog_version": kev.get("catalogVersion", ""),
         "date_released": kev.get("dateReleased", ""),
         "count": kev.get("count", len(kev.get("vulnerabilities", []))),
+        "resumed": resume and kev_full.is_file(),
     }
 
     # EPSS
-    print("  downloading EPSS ...")
-    # EPSS publishes the previous day's file; step back until a file exists.
-    epss_model, epss_rows, epss_blob = None, None, None
-    epss_date = date
-    from datetime import timedelta
-    for _ in range(5):
-        try:
-            epss_model, epss_rows, epss_blob = fetch_epss(epss_date)
-            break
-        except urllib.error.HTTPError as exc:
-            if exc.code in (403, 404):
-                # the file for `date` may not be published yet (EPSS
-                # publishes the previous day) or is private; step back
-                epss_date = (datetime.strptime(epss_date, "%Y-%m-%d")
-                             - timedelta(days=1)).strftime("%Y-%m-%d")
-                continue
-            raise
-    if epss_blob is None:
-        print("error: no EPSS file found for the last 5 days", file=sys.stderr)
-        return 1
-    (snap / "epss.full.csv.gz").write_bytes(epss_blob)
+    epss_full = snap / "epss.full.csv.gz"
+    if resume and epss_full.is_file():
+        print("  reusing cached EPSS ...")
+        epss_blob = epss_full.read_bytes()
+        epss_model, epss_rows = parse_epss_gzip(epss_blob)
+        epss_date = manifest["feeds"].get("epss", {}).get(
+            "score_date", date)
+    else:
+        print("  downloading EPSS ...")
+        # EPSS publishes the previous day's file; step back until a file
+        # exists.
+        epss_model, epss_rows, epss_blob = None, None, None
+        epss_date = date
+        from datetime import timedelta
+        for _ in range(5):
+            try:
+                epss_model, epss_rows, epss_blob = fetch_epss(epss_date)
+                break
+            except urllib.error.HTTPError as exc:
+                if exc.code in (403, 404):
+                    # the file for `date` may not be published yet (EPSS
+                    # publishes the previous day); step back a day
+                    epss_date = (datetime.strptime(epss_date, "%Y-%m-%d")
+                                 - timedelta(days=1)).strftime("%Y-%m-%d")
+                    continue
+                raise
+        if epss_blob is None:
+            print("error: no EPSS file found for the last 5 days",
+                  file=sys.stderr)
+            return 1
+        epss_full.write_bytes(epss_blob)
     manifest["feeds"]["epss"] = {
         "url": EPSS_URL.format(date=epss_date),
-        "fetched_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "fetched_utc": manifest["feeds"].get("epss", {}).get(
+            "fetched_utc",
+            datetime.now(timezone.utc).isoformat(timespec="seconds")),
         "sha256": sha256_bytes(epss_blob),
         "model_version": epss_model,
         "score_date": epss_date,
         "rows": len(epss_rows),
+        "resumed": resume and epss_full.is_file(),
     }
 
     # NVD, per CPE product (virtualMatchString, paginated), respecting the
@@ -204,12 +265,25 @@ def cmd_fetch(args) -> int:
     specs = sorted({spec for spec in cpe_map.values()})
     nvd_dir = snap / "nvd"
     nvd_dir.mkdir(exist_ok=True)
-    manifest["feeds"]["nvd"] = {"url": NVD_URL, "queries": {}}
+    manifest["feeds"]["nvd"] = manifest["feeds"].get("nvd", {"url": NVD_URL,
+                                                            "queries": {}})
+    manifest["feeds"]["nvd"]["url"] = NVD_URL
     n_rows = len(specs)
+    skipped = 0
     for i, spec in enumerate(specs, 1):
         part, vendor, product = parse_cpe_spec(spec)
         query = f"cpe:2.3:{part}:{vendor}:{product}"
         out = nvd_dir / f"{vendor}__{product}.json"
+        cached = None
+        if out.is_file():
+            try:
+                cached = json.loads(out.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                cached = None
+        if resume and cached and cached.get("records"):
+            print(f"  NVD {i}/{n_rows}: {part}:{vendor}:{product} ... cached")
+            skipped += 1
+            continue
         print(f"  NVD {i}/{n_rows}: {part}:{vendor}:{product} ...")
         try:
             records, total = fetch_nvd_cpe(query, sleep_s=args.nvd_sleep)
@@ -230,6 +304,8 @@ def cmd_fetch(args) -> int:
         }
         if i < n_rows:
             time.sleep(args.nvd_sleep)
+    if skipped:
+        print(f"  {skipped} products reused from cache")
 
     # Reduce KEV and EPSS to the CVEs the NVD queries returned, so the
     # committed snapshot stays small and the demo runs offline. Full

@@ -7,5 +7,5 @@ dist/
 *.egg-info/
 examples/openwrt-rootfs.tar.gz
 examples/*.pcap.orig
-data/snapshots/*full*
+data/snapshots/**/*.full*
 .nft/

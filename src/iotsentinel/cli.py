@@ -41,6 +41,12 @@ def build_parser() -> argparse.ArgumentParser:
                               "records are reduced to the CVEs matching "
                               "its components (keeps the snapshot small "
                               "enough to commit)")
+    p_fetch.add_argument("--resume", action="store_true",
+                         help="reuse an existing snapshot: keep already-"
+                              "downloaded KEV/EPSS files and NVD records "
+                              "instead of re-downloading, and only query "
+                              "the NVD products that came back empty "
+                              "(useful after 503s; NVD is rate limited)")
 
     p_scan = sub.add_parser(
         "scan",

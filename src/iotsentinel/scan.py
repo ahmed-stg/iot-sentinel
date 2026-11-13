@@ -134,25 +134,19 @@ def parse_opkg(text: str) -> list[tuple[str, str]]:
 
 def parse_apk(text: str) -> list[tuple[str, str]]:
     """apk database: blank-line separated records with one-letter keys,
-    `P:package`, `V:version`, plus `o:` origin and `p:` provides."""
+    `P:package`, `V:version`. Virtual `p:` provides aliases are skipped:
+    they are not installed packages and would pollute the SBOM."""
     found: list[tuple[str, str]] = []
     for block in re.split(r"\n\s*\n", text.strip()):
         pkg: str | None = None
         version: str | None = None
-        provides: list[str] = []
         for line in block.splitlines():
             if line.startswith("P:"):
                 pkg = line[2:].strip()
             elif line.startswith("V:"):
                 version = line[2:].strip()
-            elif line.startswith("p:"):
-                provides += [p.split("=")[0].strip()
-                             for p in line[2:].split() if p.strip()]
         if pkg and version:
             found.append((pkg, version))
-            for alias in provides:
-                if alias and alias not in {p for p, _ in found}:
-                    found.append((alias, version))
     return found
 
 
