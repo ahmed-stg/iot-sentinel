@@ -1,0 +1,29 @@
+iotsentinel 0.1.0 reproduction run
+sbom: sbom.cdx.json  snapshot: data/snapshots/2026-11-15
+kev catalog: 2026.11.13
+epss model: v2026.06.15
+
+rows=47 components=136 not_assessed=130
+kev_rows=0 no_cvss=0 no_epss=0
+coverage: cvss=100.0% epss=100.0%
+
+P1 counts (S >= 0.7) per weighting:
+  W1 (w_cvss=0.4, w_epss=0.4, w_kev=0.2): p1=0
+  W2 (w_cvss=0.2, w_epss=0.7, w_kev=0.1): p1=0
+  W3 (w_cvss=0.4, w_epss=0.1, w_kev=0.5): p1=0
+
+rank movement: 25/47 move W1->W2, 2/47 move W1->W3
+
+not assessed (no CPE mapping):
+  apk-mbedtls@3.0.5
+  attendedsysupgrade-common@10
+  base-files@1718
+  ca-bundle@20260816
+  cgi-io@2026.07.21
+  e2fsprogs@1.47.3
+  firewall4@2025.03.17
+  fstools@2026.05.23
+  fwtool@2025.10.03
+  getrandom@2025.10.30
+  ... and 120 more
+

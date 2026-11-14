@@ -1,0 +1,128 @@
+{
+  "tool_version": "0.1.0",
+  "snapshot_date": "2026-11-15",
+  "feeds": {
+    "kev": {
+      "url": "https://www.cisa.gov/sites/default/files/feeds/known_exploited_vulnerabilities.json",
+      "fetched_utc": "2026-11-15T01:36:21+00:00",
+      "sha256": "4028ec035856331a717d3305e87e45be37d400fc500da34a5464f05fc2773764",
+      "catalog_version": "2026.11.13",
+      "date_released": "2026-11-13T20:24:18.3008Z",
+      "count": 1781,
+      "resumed": true
+    },
+    "epss": {
+      "url": "https://epss.empiricalsecurity.com/epss_scores-2026-11-15.csv.gz",
+      "fetched_utc": "2026-11-15T01:36:24+00:00",
+      "sha256": "4d8312933ed44df83077ed2c120f418ecdfc6309f66b677666fe4b71f46e5675",
+      "model_version": "v2026.06.15",
+      "score_date": "2026-11-15",
+      "rows": 406615,
+      "resumed": true
+    },
+    "nvd": {
+      "url": "https://services.nvd.nist.gov/rest/json/cves/2.0",
+      "queries": {
+        "a:arm:mbed_tls": {
+          "query": "cpe:2.3:a:arm:mbed_tls",
+          "total_results": 51,
+          "records_stored": 51,
+          "fetched_utc": "2026-11-15T02:02:56+00:00"
+        },
+        "a:busybox:busybox": {
+          "query": "cpe:2.3:a:busybox:busybox",
+          "total_results": 46,
+          "records_stored": 46,
+          "fetched_utc": "2026-11-15T01:36:37+00:00"
+        },
+        "a:dnsmasq:dnsmasq": {
+          "query": "cpe:2.3:a:dnsmasq:dnsmasq",
+          "total_results": 2,
+          "records_stored": 2,
+          "fetched_utc": "2026-11-15T01:36:57+00:00"
+        },
+        "a:dropbear_ssh_project:dropbear_ssh": {
+          "query": "cpe:2.3:a:dropbear_ssh_project:dropbear_ssh",
+          "total_results": 20,
+          "records_stored": 20,
+          "fetched_utc": "2026-11-15T01:37:23+00:00"
+        },
+        "a:haxx:curl": {
+          "query": "cpe:2.3:a:haxx:curl",
+          "total_results": 0,
+          "records_stored": 0,
+          "fetched_utc": "2026-11-15T01:37:36+00:00"
+        },
+        "a:lighttpd:lighttpd": {
+          "query": "cpe:2.3:a:lighttpd:lighttpd",
+          "total_results": 35,
+          "records_stored": 35,
+          "fetched_utc": "2026-11-15T02:05:11+00:00"
+        },
+        "a:openbsd:openssh": {
+          "query": "cpe:2.3:a:openbsd:openssh",
+          "total_results": 147,
+          "records_stored": 147,
+          "fetched_utc": "2026-11-15T01:38:24+00:00"
+        },
+        "a:openssl:openssl": {
+          "query": "cpe:2.3:a:openssl:openssl",
+          "total_results": 330,
+          "records_stored": 330,
+          "fetched_utc": "2026-11-15T02:09:20+00:00"
+        },
+        "a:samba:ppp": {
+          "query": "cpe:2.3:a:samba:ppp",
+          "total_results": 2,
+          "records_stored": 2,
+          "fetched_utc": "2026-11-15T01:38:56+00:00"
+        },
+        "a:sqlite:sqlite": {
+          "query": "cpe:2.3:a:sqlite:sqlite",
+          "total_results": 77,
+          "records_stored": 77,
+          "fetched_utc": "2026-11-15T01:39:22+00:00"
+        },
+        "a:w1.fi:hostapd": {
+          "query": "cpe:2.3:a:w1.fi:hostapd",
+          "total_results": 41,
+          "records_stored": 41,
+          "fetched_utc": "2026-11-15T02:37:01+00:00"
+        },
+        "a:w1.fi:wpa_supplicant": {
+          "query": "cpe:2.3:a:w1.fi:wpa_supplicant",
+          "total_results": 39,
+          "records_stored": 39,
+          "fetched_utc": "2026-11-15T02:37:13+00:00"
+        },
+        "a:wolfssl:wolfssl": {
+          "query": "cpe:2.3:a:wolfssl:wolfssl",
+          "total_results": 151,
+          "records_stored": 151,
+          "fetched_utc": "2026-11-15T02:37:23+00:00"
+        },
+        "a:zlib:zlib": {
+          "query": "cpe:2.3:a:zlib:zlib",
+          "total_results": 15,
+          "records_stored": 15,
+          "fetched_utc": "2026-11-15T01:40:40+00:00"
+        },
+        "o:linux:linux_kernel": {
+          "query": "cpe:2.3:o:linux:linux_kernel",
+          "total_results": 19744,
+          "records_stored": 6000,
+          "fetched_utc": "2026-11-15T02:32:03+00:00"
+        }
+      }
+    }
+  },
+  "sbom_reduction": {
+    "sbom": "sbom.cdx.json",
+    "components": 136
+  },
+  "reduced": {
+    "cves_in_nvd": 1488,
+    "kev_rows": 39,
+    "epss_rows": 1488
+  }
+}
