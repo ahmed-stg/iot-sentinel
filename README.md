@@ -189,9 +189,13 @@ Zero P1 rows on a current release is the expected result — the paper's headlin
 python -m unittest discover -s tests -v
 ```
 
-## Security
+## Status
 
-See [SECURITY.md](SECURITY.md) for how to report issues.
+This is a research/lab project built as the practical companion of the
+preprints above, without supported releases. Please do not treat it as
+production software: the generated rulesets and risk reports are research
+artifacts, not production controls. Report security issues privately to
+the maintainer (a.kaouadji@esi-sba.dz) if needed.
 
 ## License
 
