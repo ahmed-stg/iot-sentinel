@@ -24,4 +24,4 @@ Format follows Keep a Changelog; versions are SemVer.
 - `reproduce/reproduce_table.py`: regenerates the paper's headline
   table (P1 counts per weighting, coverage, rank movement).
 - Docker demo (`docker compose up demo`).
-- 54 unit tests, GitHub Actions CI on Python 3.11/3.12.
+- 64 unit tests.

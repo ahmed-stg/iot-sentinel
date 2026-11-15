@@ -10,12 +10,16 @@ It is the practical companion of my research preprints:
 
 | Module | What it does | Research behind it |
 |---|---|---|
-| `scan` | Firmware rootfs to CycloneDX SBOM | `sbom_firmware/` (Theme 1) |
-| `triage` | CVE mapping and CVSS x EPSS x KEV ranking, with weighting sensitivity check | `sbom_firmware/` (Theme 1) |
-| `mudgen` | pcap to RFC 8520 MUD file, with allow-list drift detection | `mud_adoption/` (Theme 4) |
-| `enforce` | MUD/policy to nftables, with safety-aware degradation | `zt_gateway/` (Theme 5) |
+| `scan` | Firmware rootfs to CycloneDX SBOM | [From Firmware Image to Actionable SBOM](https://drive.google.com/file/d/1Mo2h7yN6IAtQ3iFw9svC3_QXqbalRUKB/view?usp=drive_link) (Theme 1) |
+| `triage` | CVE mapping and CVSS x EPSS x KEV ranking, with weighting sensitivity check | [From Firmware Image to Actionable SBOM](https://drive.google.com/file/d/1Mo2h7yN6IAtQ3iFw9svC3_QXqbalRUKB/view?usp=drive_link) (Theme 1) |
+| `mudgen` | pcap to RFC 8520 MUD file, with allow-list drift detection | [The Adoption Gap of RFC 8520](https://drive.google.com/file/d/12yiGYazROE9A2_Q6nfePunqi4PAEBrLY/view?usp=drive_link) (Theme 4) |
+| `enforce` | MUD/policy to nftables, with safety-aware degradation | [Zero Trust for Legacy IoT](https://drive.google.com/file/d/1pTtqwEFI_nYG30ou7_6sWBG53ftlDa1V/view?usp=drive_link) (Theme 5) |
 
-<!-- TODO: add links to the preprints (arXiv/Zenodo/GitHub PDFs) here -->
+The full preprints:
+
+1. [From Firmware Image to Actionable SBOM: A Measured Vulnerability Triage Study of OpenWrt Device Firmware](https://drive.google.com/file/d/1Mo2h7yN6IAtQ3iFw9svC3_QXqbalRUKB/view?usp=drive_link)
+2. [The Adoption Gap of RFC 8520: A Measurement and Evaluation Study of MUD Tooling for IoT Segmentation](https://drive.google.com/file/d/12yiGYazROE9A2_Q6nfePunqi4PAEBrLY/view?usp=drive_link)
+3. [Zero Trust for Legacy IoT: Gateway-Mediated Continuous Authorization When Devices Cannot Authenticate](https://drive.google.com/file/d/1pTtqwEFI_nYG30ou7_6sWBG53ftlDa1V/view?usp=drive_link)
 
 ## Why this exists
 
@@ -195,4 +199,4 @@ MIT. See [LICENSE](LICENSE).
 
 ## Author
 
-Ahmed Kaouadji, ESI Sidi Bel Abbes. Preprints: <!-- TODO: link -->
+Ahmed Kaouadji, ESI Sidi Bel Abbes.
