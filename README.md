@@ -24,7 +24,7 @@ Papers describe methods; this repo lets you run them. Every number the tool prin
 ## Install
 
 ```bash
-git clone https://github.com/<you>/iotsentinel.git
+git clone https://github.com/ahmed-stg/iot-sentinel.git
 cd iotsentinel
 python3 -m venv .venv && source .venv/bin/activate   # optional, there are no runtime deps
 pip install -e .                                      # exposes the `iotsentinel` command

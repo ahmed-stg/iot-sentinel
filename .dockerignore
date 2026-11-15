@@ -1,0 +1,7 @@
+.git
+.venv
+out
+data/snapshots/**/*.full*
+examples/openwrt-rootfs.tar.gz
+__pycache__
+*.pyc
